@@ -22,7 +22,7 @@ class WordUp:
     btn_warning = "warning-outline"
     padding_mainframe = 30
     padding_lframe = 20
-    padding_floodgauge = 10
+    padding_floodgauge = 0
     ipad_btn = 6
 
     def __init__(self, window):
@@ -34,7 +34,7 @@ class WordUp:
         self.config_styles()
 
         self.ui_front: bool = True
-        self.db_overwrite_prompt: bool = True
+        self.db_overwrite_prompt: bool = False
         self.ui_elements = None
 
         self.review_start_time = None
@@ -108,10 +108,15 @@ class WordUp:
         self.load_ui_elements()
         self.window.protocol("WM_DELETE_WINDOW", self.on_exit)
 
+    def _get_elapsed_seconds(self):
+        return int((datetime.now() - self.review_start_time).total_seconds())
+
     def update_review_timer(self):
-        if not (self.ui_front or self.review_start_time):  # To-do: improve
-            return
-        elapsed_seconds = int((datetime.now() - self.review_start_time).total_seconds())
+        if not self.review_start_time:  # To-do: improve
+            self.review_start_time = datetime.now()
+            elapsed_seconds = 0
+        else:
+            elapsed_seconds = self._get_elapsed_seconds()
         if elapsed_seconds < 60:
             self.ui_elements.floodgauge_timer.configure(value=elapsed_seconds, text=f"0m : {elapsed_seconds}s")
             self.window.after(100, self.update_review_timer)
@@ -127,9 +132,9 @@ class WordUp:
 
             self.session_service.set_next_card()
 
-            self.load_topframe()  # needs deck_name/deck_id
-            self.load_midframe()  # needs card content!
-            self.load_bottomframe()  # needs intervals
+            self.load_topframe()
+            self.load_midframe()
+            self.load_bottomframe()
 
         else:
             self.mainframe.destroy()
@@ -219,6 +224,23 @@ class WordUp:
             style="fontXLarge.TLabel"
         )
         uie.lbl_card.pack(expand=YES, anchor="center")
+        uie.floodgauge_timer = ttk.Floodgauge(
+            master=uie.lframe_mid,
+            orient=HORIZONTAL,
+            mode="determinate",
+            value=0,
+            maximum=60,
+            text="0m : 0s",
+            bootstyle=SECONDARY,
+            thickness=15,
+            font=(WordUp.font_secondary, 8)
+        )
+
+        if not self.review_start_time:
+            self.review_start_time = datetime.now()
+
+        self.update_review_timer()  # uie.floodgauge_timer.configure(text=...)
+        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
 
     def load_bottomframe(self):
         uie = self.ui_elements
@@ -233,9 +255,8 @@ class WordUp:
 
     def _onclick_btn_show_answer(self):
         self.ui_front = False
-        self.review_start_time = None
         self._update_lframe_mid()
-        self._reload_frame_bottom()
+        self._update_frame_bottom()
 
     def _update_frame_top(self):
         uie = self.ui_elements
@@ -250,7 +271,25 @@ class WordUp:
             uie.lframe_mid.configure(text="en")
             uie.lbl_card.configure(text=self.session_service.current_card_data.content.en)
 
-    def _reload_frame_bottom(self):
+        if not uie.floodgauge_timer:
+            uie.floodgauge_timer = ttk.Floodgauge(
+                master=uie.lframe_mid,
+                orient=HORIZONTAL,
+                mode="determinate",
+                value=0,
+                maximum=60,
+                text="0m : 0s",
+                bootstyle=SECONDARY,
+                thickness=15,
+                font=(WordUp.font_secondary, 8)
+            )
+        if not self.review_start_time:
+            self.review_start_time = datetime.now()
+
+        self.update_review_timer()  # uie.floodgauge_timer.configure(text=...)
+        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
+
+    def _update_frame_bottom(self):
         uie = self.ui_elements
         for widget in uie.frame_bottom.winfo_children():
             widget.pack_forget()
@@ -265,7 +304,7 @@ class WordUp:
         frame_btn_composite.pack(side=LEFT, expand=YES, ipadx=0)
 
         lbl_interval = ttk.Label(frame_btn_composite, text=txt_lbl, style='fontMedium.TLabel')
-        lbl_interval.pack(pady=(8, 10))  # To-do: improve
+        lbl_interval.pack(pady=(0, 7))  # To-do: improve
 
         btn_rating = ttk.Button(frame_btn_composite, text=txt_btn, bootstyle=bootstyle)
         btn_rating.config(command=lambda b=btn_rating: self._onclick_btn_rating(b))
@@ -298,43 +337,27 @@ class WordUp:
             uie.frame_easy.pack(side=LEFT, expand=YES, ipadx=0)
 
     def _onclick_btn_rating(self, btn_rating):
-        self.session_service.on_answer(rating_txt=btn_rating['text'], review_duration=None)
+        elapsed_seconds = self._get_elapsed_seconds()
+        self.session_service.on_answer(rating_txt=btn_rating['text'], review_duration=elapsed_seconds)
+
+        self.review_start_time = None
         self.ui_front = not self.ui_front
 
         if self.session_service.has_cards_to_study():
             self._update_frame_top()
             self._update_lframe_mid()
-            self._reload_frame_bottom()
+            self._update_frame_bottom()
         else:
             self.mainframe.destroy()
             self.load_end_message()
 
     def _load_bottom_widgets_front(self):
         uie = self.ui_elements
-        # To-do: Thread for timer and text!!!
-        # controller: floodgauge_timer value and text
-        if not uie.floodgauge_timer:
-            uie.floodgauge_timer = ttk.Floodgauge(
-                master=uie.frame_bottom,
-                orient=HORIZONTAL,
-                mode="determinate",
-                value=0,
-                maximum=60,
-                text="0m : 0s",
-                bootstyle=SECONDARY,
-                thickness=15,
-                font=(WordUp.font_secondary, 8)
-            )
-        if not self.review_start_time:
-            self.review_start_time = datetime.now()
-
-        self.update_review_timer()  # uie.floodgauge_timer.configure(text=...)
-        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
 
         if not uie.btn_answer:
             uie.btn_answer = ttk.Button(master=uie.frame_bottom, text="Show Answer", style=WordUp.btn_primary,
                                     command=self._onclick_btn_show_answer)
-        uie.btn_answer.pack(fill=X, ipadx=WordUp.ipad_btn, ipady=WordUp.ipad_btn)
+        uie.btn_answer.pack(fill=X, ipadx=WordUp.ipad_btn, ipady=WordUp.ipad_btn*2, pady=(WordUp.ipad_btn*4, 0))
 
     def on_exit(self):
         if self.session_service.has_cards_to_study():
