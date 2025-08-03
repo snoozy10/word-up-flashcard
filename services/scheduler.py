@@ -11,7 +11,7 @@ Classes:
 from __future__ import annotations
 from collections.abc import Sequence
 import math
-from copy import copy
+from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from random import random
 from dataclasses import dataclass
@@ -242,7 +242,7 @@ class Scheduler:
             review_datetime = datetime.now(timezone.utc)
 
         days_since_last_review = None
-        card = copy(og_card)
+        card = deepcopy(og_card)
 
         if card.last_review:
             days_since_last_review = (

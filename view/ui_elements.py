@@ -12,9 +12,10 @@ class UIElements:
 
         self.lframe_mid = None
         self.lbl_card = None
+        self.floodgauge_timer = None
+        self.lbl_flip_card = None
 
         self.frame_bottom = None
-        self.floodgauge_timer = None
         self.btn_answer = None
 
         self.frame_again = None

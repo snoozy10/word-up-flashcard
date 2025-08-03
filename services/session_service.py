@@ -64,7 +64,7 @@ class AppContext(NamedTuple):
 
 
 class SessionService:
-    DAILY_LIMIT_FOR_NEW_CARDS = 5  # To-do for improvement: add limits per deck, and one overall limit
+    DAILY_LIMIT_FOR_NEW_CARDS = 30  # To-do for improvement: add limits per deck, and one overall limit
     SHOULD_LEARN_AHEAD = True
     LEARN_AHEAD_MINUTES = 60
 
@@ -83,6 +83,7 @@ class SessionService:
 
         self.current_deck_data: CurrentDeckData = CurrentDeckData()
         self.current_card_data: Optional[CurrentCardData] = None
+        self.review_start_time: Optional[datetime] = None
         self.session: Optional[StudySession] = None
         self.list_priority_weights = SessionService.LIST_PRIORITY_WEIGHTS
 
@@ -381,9 +382,10 @@ class SessionService:
 
         # Direct list access without string comparison overhead
         selected_list = self._list_refs[selected_list_name]
-        selected_list.sort(key=lambda card: card.due)  # To-do: sort before or after popping? to avoid seeing the same card next
+
         cc = selected_list.pop(0)
         assert cc is not None
+        selected_list.sort(key=lambda card: card.due)  # To-do: sort before or after popping? to avoid seeing the same card next
 
         content = self.session.indexed_contents.get(cc.content_id)
         if not self.current_card_data:
@@ -398,6 +400,7 @@ class SessionService:
                          + self.session.review_cards
                          + self.session.new_cards)
         if len(updated_cards) < len(self.session.indexed_contents):
+            self.match_and_append_to_list(self.current_card_data.card)  # relevant for new cards studied on this session
             updated_cards.append(self.current_card_data.card)
         return updated_cards
 
@@ -493,5 +496,3 @@ def test():
     print(len(not_new_cards))
 
 
-if __name__ == "__main__":
-    test_singleton()

@@ -147,27 +147,43 @@ class WordUp:
     def load_end_message(self):
         lbl_empty_msg = ttk.Label(
             master=self.window,
-            text="Woohoo! No cards to study for now!",
-            style="fontLarge.TLabel",
-            justify="center"
+            text="Woohoo!\nYou're all caught up! \U0001F60A",
+            style="fontXLarge.info.TLabel",
+            justify="center",
+            wraplength=self.win_width*.75
         )
         lbl_empty_msg.pack(expand=YES, anchor="center")
         self.session_service.on_session_end()
         # self.window.protocol("WM_DELETE_WINDOW", None)
 
-    @staticmethod
-    def config_styles():
+    def config_styles(self):
         s = ttk.Style()
         info = s.colors.get('info')
         warning = s.colors.get('warning')
+        light = s.colors.get('light')
+        focus_bg = s.lookup("TButton", "background")
 
-        ttk.Style().configure('TButton', font=(WordUp.font_primary, 12, 'bold'))
-        ttk.Style().configure('fontLarge.TLabel', font=(WordUp.font_primary, 12, 'bold'))
-        ttk.Style().configure('fontXLarge.info.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=info)
-        ttk.Style().configure('fontXLarge.warning.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=warning)
-        ttk.Style().configure('fontMedium.TLabel', font=(WordUp.font_secondary, 9))
-        ttk.Style().configure('fontSmall.TLabel', font=(WordUp.font_secondary, 9))
-        ttk.Style().configure('TLabelframe', font=(WordUp.font_primary, 12))
+        s.configure('TButton', font=(WordUp.font_primary, 12, 'bold'))
+        s.configure('fontLarge.TLabel', font=(WordUp.font_primary, 12, 'bold'))
+        s.configure('fontXLarge.info.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=info)
+        s.configure('fontXLarge.warning.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=warning)
+        s.configure('fontMedium.TLabel', font=(WordUp.font_secondary, 9))
+        s.configure('fontSmall.TLabel', font=(WordUp.font_secondary, 9))
+        s.configure('TLabelframe', font=(WordUp.font_primary, 12))
+
+        s.configure("LabelButton.TButton",
+                        relief="flat",
+                        borderwidth=0,
+                        padding=0,
+                        font=(WordUp.font_primary, 16),
+                        background=self.window.cget("bg"),
+                        foreground=light,
+                        focuscolor=[("focus", focus_bg)])
+
+        # Remove hover and pressed effects
+        s.map("LabelButton.TButton",
+                  background=[("active", self.window.cget("bg"))],
+                  relief=[("pressed", "flat"), ("active", "flat")])
 
     def load_topframe(self):
         uie = self.ui_elements
@@ -222,6 +238,9 @@ class WordUp:
             expand=YES,
             pady=WordUp.padding_lframe
         )
+        uie.btn_flip_card = ttk.Button(master=uie.lframe_mid, style="LabelButton.TButton", text="", state="disabled", command=self._onclick_btn_flip)
+        uie.btn_flip_card.pack(side=TOP, anchor=NE, pady=0, padx=10)
+
         uie.lbl_card = ttk.Label(
             uie.lframe_mid,
             text=self.session_service.current_card_data.content.de,
@@ -249,6 +268,17 @@ class WordUp:
         uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn+1, pady=WordUp.padding_floodgauge)
         self.update_review_timer()
 
+    def _onclick_btn_flip(self):
+        uie = self.ui_elements
+        if uie.lframe_mid["text"] == "en":
+            uie.lframe_mid.configure(text="de")
+            uie.lbl_card.configure(text=self.session_service.current_card_data.content.de,
+                                   style="fontXLarge.warning.TLabel")
+        elif uie.lframe_mid["text"] == "de":
+            uie.lframe_mid.configure(text="en")
+            uie.lbl_card.configure(text=self.session_service.current_card_data.content.en,
+                                   style="fontXLarge.info.TLabel")
+
     def load_bottomframe(self):
         uie = self.ui_elements
         uie.frame_bottom = ttk.Frame(self.mainframe)
@@ -274,9 +304,11 @@ class WordUp:
         if self.ui_front:
             uie.lframe_mid.configure(text="de")
             uie.lbl_card.configure(text=self.session_service.current_card_data.content.de, style="fontXLarge.warning.TLabel")
+            uie.btn_flip_card.configure(text="", state="disabled")
         else:
             uie.lframe_mid.configure(text="en")
             uie.lbl_card.configure(text=self.session_service.current_card_data.content.en, style="fontXLarge.info.TLabel")
+            uie.btn_flip_card.configure(text="\U0001F504", state="normal")
 
         if not self.review_start_time:
             self.review_start_time = datetime.now()
@@ -337,7 +369,7 @@ class WordUp:
         self.session_service.on_answer(rating_txt=btn_rating['text'], review_duration=elapsed_seconds)
 
         self.review_start_time = None
-        self.ui_front = not self.ui_front
+        self.ui_front = True
 
         if self.session_service.current_card_data:
             self.window.after(100, self._update_frame_top)
