@@ -18,6 +18,7 @@ class DeckCounts:
     new: int = 0
     learn: int = 0
     review: int = 0
+    done_for_today: int = 0
 
 
 @dataclass
@@ -63,7 +64,7 @@ class AppContext(NamedTuple):
 
 
 class SessionService:
-    DAILY_LIMIT_FOR_NEW_CARDS = 200
+    DAILY_LIMIT_FOR_NEW_CARDS = 25  # To-do for improvement: add limits per deck, and one overall limit
     SHOULD_LEARN_AHEAD = True
     LEARN_AHEAD_MINUTES = 60
 
@@ -83,28 +84,26 @@ class SessionService:
         self.current_deck_data: CurrentDeckData = CurrentDeckData()
         self.current_card_data: Optional[CurrentCardData] = None
         self.session: Optional[StudySession] = None
-
-        self.set_current_deck_id_and_name(deck_id=deck_id)
-        self.start_new_session()
-
         self.list_priority_weights = SessionService.LIST_PRIORITY_WEIGHTS
 
-        self.populate_session_lists()
-        self.populate_session_indexed_contents()
-        self.update_deck_counts()
+        self.set_current_deck_id_and_name(deck_id=deck_id)  # 1
+        self.init_new_session()  # 1 needs start and cutoff time
 
-    def start_new_session(self):
+    def init_new_session(self):
         start_time: datetime = datetime.now(timezone.utc)
         cutoff_time: datetime = start_time
         if SessionService.SHOULD_LEARN_AHEAD:
             cutoff_time += timedelta(minutes=SessionService.LEARN_AHEAD_MINUTES)
-        limit_for_new_cards = self.get_session_limit_for_new_cards()
+        limit_for_new_cards = self.get_session_limit_for_new_cards(cutoff_time)
 
         self.session = StudySession(
             start_time=start_time,
             cutoff_time=cutoff_time,
             limit_for_new_cards=limit_for_new_cards
         )
+        self.populate_session_lists()  # 2 needs cutoff_time, limit_for_new_cards
+        self.populate_session_indexed_contents()  # 3 needs all lists ready
+        self.update_deck_counts()  # 3 needs all lists ready
 
     def set_current_deck_id_and_name(self, deck_id: Optional[int]):
         if deck_id is None:
@@ -112,7 +111,6 @@ class SessionService:
         deck_name = self.context.deck_crud.get_deck_by_id(deck_id)
         self.current_deck_data.deck_id = deck_id
         self.current_deck_data.deck_name = deck_name
-        # self.update_deck_counts()
 
     @property
     def card_state_to_session_list(self):
@@ -123,31 +121,29 @@ class SessionService:
             State.Review | State.Review.value: self.session.review_cards,
         }
 
-    def get_session_limit_for_new_cards(self):
+    def get_session_limit_for_new_cards(self, cutoff_time):
         metadata = self.context.metadata_crud.get_metadata()
         if metadata:
             (_, last_session_cutoff, new_cards_reviewed) = tuple(metadata[0])
             last_session_cutoff = datetime.fromisoformat(last_session_cutoff)
 
-            if last_session_cutoff.day == self.session.cutoff_time.day:
+            if last_session_cutoff.day == cutoff_time.day:
                 return max((SessionService.DAILY_LIMIT_FOR_NEW_CARDS - new_cards_reviewed), 0)
 
         return SessionService.DAILY_LIMIT_FOR_NEW_CARDS
 
-    def populate_session_lists(self):  # To-do: pass deck_id!!!!
-        # print("session_service.py -> populate_session_lists")
+    def populate_session_lists(self):
         cards = self.get_session_new_cards_within_limit()
         self.session.new_cards = [Card(*card) for card in cards]
 
-        cards = self.get_session_learn_cards()  # pass last session cutoff and now for due between ?, ?
+        cards = self.get_session_learn_cards()
         self.session.learn_cards = [Card(*card) for card in cards]
 
-        cards = self.get_session_review_cards()  # pass last session cutoff and now for due between ?, ?
+        cards = self.get_session_review_cards()
         self.session.review_cards = [Card(*card) for card in cards]
 
     def gather_session_content_ids(self):
-        if not self.has_cards_to_study():
-            return None
+        assert self.has_cards_to_study()
 
         content_ids = []
         if self.session.new_cards:
@@ -160,31 +156,34 @@ class SessionService:
         return content_ids
 
     def populate_session_indexed_contents(self):
-        content_ids = self.gather_session_content_ids()
-        contents = self.context.content_crud.get_many_contents_by_ids(content_ids)
-        contents = [Content(*content) for content in contents]
-        self.session.build_content_index(card_contents=contents)
+        if self.has_cards_to_study():
+            content_ids = self.gather_session_content_ids()
+            contents = self.context.content_crud.get_many_contents_by_ids(content_ids)
+            contents = [Content(*content) for content in contents]
+            self.session.build_content_index(card_contents=contents)
+            print(len(self.session.indexed_contents))
 
     def update_deck_counts(self):
         self.current_deck_data.count.new = len(self.session.new_cards) if self.session.new_cards is not None else 0
         self.current_deck_data.count.learn = len(self.session.learn_cards) if self.session.learn_cards is not None else 0
         self.current_deck_data.count.review = len(self.session.review_cards) if self.session.review_cards is not None else 0
+        self.current_deck_data.count.done_for_today = len(self.session.cards_done_until_cutoff) \
+            if self.session.cards_done_until_cutoff is not None \
+            else 0
 
     def get_session_cutoff(self):
         if SessionService.SHOULD_LEARN_AHEAD:
             return self.session.start_time + timedelta(minutes=SessionService.LEARN_AHEAD_MINUTES)
         return self.session.start_time
 
-    def get_session_new_cards_within_limit(self):  # To-do: pass new session limit!!
-        # print("session_service.py -> get_session_new_cards_within_limit")
-        # print(f"session_limit_for_new_cards: {self.session_limit_for_new_cards}")
+    def get_session_new_cards_within_limit(self):
         return self.context.card_crud.get_limited_new_cards(
             deck_id=self.current_deck_data.deck_id,
             new_state_int=State.New,
             limit=self.session.limit_for_new_cards
         )
 
-    def get_session_learn_cards(self):  # To-do: add due!!
+    def get_session_learn_cards(self):
         return self.context.card_crud.get_due_learning_cards(
             deck_id=self.current_deck_data.deck_id,
             learning_state_int=State.Learning,
@@ -192,12 +191,43 @@ class SessionService:
             session_cutoff_epoch_millis=Scheduler.date_to_epoch_millis(self.session.cutoff_time)
         )
 
-    def get_session_review_cards(self):  # To-do: add due!!  change deck_id !!!
+    def get_session_review_cards(self):
         return self.context.card_crud.get_due_review_cards(
             deck_id=self.current_deck_data.deck_id,
             review_state_int=State.Review,
             session_cutoff_epoch_millis=Scheduler.date_to_epoch_millis(self.session.cutoff_time)
         )
+
+    @staticmethod
+    def format_intervals(td: timedelta) -> str:
+        total_seconds = int(td.total_seconds())
+        days, remainder = divmod(total_seconds, 86400)  # 86400 seconds in a day
+        hours, remainder = divmod(remainder, 3600)  # 3600 seconds in an hour
+        minutes, seconds = divmod(remainder, 60)
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days}d")
+        if hours > 0:
+            parts.append(f"{hours}h")
+        if minutes > 0:
+            parts.append(f"{minutes}m")
+        if seconds > 0 or not parts:
+            parts.append(f"{seconds}s")
+
+        return ''.join(parts)
+
+    def get_next_intervals(self) -> tuple[str, str, str, str]:
+        now = datetime.now(timezone.utc)
+        _, _, again = self.context.scheduler.review_card(self.current_card_data.card, Rating.Again, now, None)
+        _, _, hard = self.context.scheduler.review_card(self.current_card_data.card, Rating.Hard, now, None)
+        _, _, good = self.context.scheduler.review_card(self.current_card_data.card, Rating.Good, now, None)
+        _, _, easy = self.context.scheduler.review_card(self.current_card_data.card, Rating.Easy, now, None)
+        again = self.format_intervals(again)
+        hard = self.format_intervals(hard)
+        good = self.format_intervals(good)
+        easy = self.format_intervals(easy)
+        return again, hard, good, easy
 
     def has_day_changed(self):
         if datetime.now(timezone.utc).day > self.session.cutoff_time.day:
@@ -224,17 +254,23 @@ class SessionService:
         else:
             print("match_and_append_to_list failed")
 
-    def on_answer(self, card, rating, review_datetime, review_duration):
-        updated_card, review_log = self.context.scheduler.review_card(card, rating, review_datetime, review_duration)
+    def on_answer(self, rating_txt, review_duration):
+        card = self.current_card_data.card
+        rating = Rating[rating_txt]
+        review_datetime = datetime.now(timezone.utc)
+
+        card, review_log, _ = self.context.scheduler.review_card(card, rating, review_datetime, review_duration)
 
         self.session.review_logs.append(review_log)
 
-        if updated_card.due > Scheduler.date_to_epoch_millis(self.session.cutoff_time):
-            self.session.cards_done_until_cutoff.append(updated_card)
+        if card.due > Scheduler.date_to_epoch_millis(self.session.cutoff_time):
+            self.session.cards_done_until_cutoff.append(card)
 
         else:
-            self.match_and_append_to_list(updated_card)
-            self.update_deck_counts()
+            self.match_and_append_to_list(card)
+
+        self.update_deck_counts()
+        self.set_next_card()
 
     def _precompute_selection_data(self):
         """Pre-compute all selection data for O(1) lookup"""
@@ -275,6 +311,9 @@ class SessionService:
         }
 
     def has_cards_to_study(self):
+        # print(f"len(self.session.new_cards) : {len(self.session.new_cards)}")
+        # print(f"len(self.session.learn_cards) : {len(self.session.learn_cards)}")
+        # print(f"len(self.session.review_cards) : {len(self.session.review_cards)}")
         has_new = len(self.session.new_cards) > 0
         has_learn = len(self.session.learn_cards) > 0
         has_review = len(self.session.review_cards) > 0
@@ -326,24 +365,32 @@ class SessionService:
 
     def set_next_card(self) -> None:
         selected_list_name = self.choose_weighted_list_name()
+
         # Fast empty check before expensive selection
         if not selected_list_name:
+            self.current_card_data = None
             return
 
         # Direct list access without string comparison overhead
         selected_list = self._list_refs[selected_list_name]
+        selected_list.sort(key=lambda card: card.due)  # To-do: sort before or after popping? to avoid seeing the same card next
         cc = selected_list.pop(0)
         assert cc is not None
-        selected_list.sort(key=lambda card: card.due)  # sorted after popping to avoid seeing the same card next
 
         content = self.session.indexed_contents.get(cc.content_id)
-        self.current_card_data = CurrentCardData(cc, content)
+        if not self.current_card_data:
+            self.current_card_data = CurrentCardData(cc, content)
+        else:
+            self.current_card_data.card = cc
+            self.current_card_data.content = content
 
     def gather_all_updated_cards(self):
         updated_cards = (self.session.cards_done_until_cutoff
                          + self.session.learn_cards
                          + self.session.review_cards
                          + self.session.new_cards)
+        if len(updated_cards) < len(self.session.indexed_contents):
+            updated_cards.append(self.current_card_data.card)
         return updated_cards
 
     def update_cards_in_db(self):
@@ -365,15 +412,25 @@ class SessionService:
             self.update_cards_in_db()
             new_cards_reviewed = max(self.session.limit_for_new_cards - len(self.session.new_cards), 0)
 
-            self.clear_session_lists()
-            self.update_deck_counts()
+            self.session.review_logs = []
+
+            metadata = self.context.metadata_crud.get_metadata()
+            if metadata:
+                (_, last_session_cutoff, last_new_cards_reviewed) = tuple(metadata[0])
+                last_session_cutoff = datetime.fromisoformat(last_session_cutoff)
+
+                if last_session_cutoff.day == self.session.cutoff_time.day:
+                    new_cards_reviewed += last_new_cards_reviewed
+
+            self.clear_session_lists()  # To-do: maybe load new session with new deck if applicable
+            self.update_deck_counts()   # To-do: maybe load new session with new deck if applicable
             self.context.metadata_crud.insert_or_replace_metadata(
                 last_session_cutoff=self.session.cutoff_time,
                 new_cards_reviewed=new_cards_reviewed
             )
 
         else:
-            print("No cards studied in this session!")
+            print("DB up-to-date!")
         # -- TO-DO create config table with CAPS_CONSTANTS
 
 

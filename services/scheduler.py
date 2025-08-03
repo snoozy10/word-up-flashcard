@@ -11,6 +11,7 @@ Classes:
 from __future__ import annotations
 from collections.abc import Sequence
 import math
+from copy import copy
 from datetime import datetime, timezone, timedelta
 from random import random
 from dataclasses import dataclass
@@ -211,16 +212,16 @@ class Scheduler:
 
     def review_card(
         self,
-        card: Card,
+        og_card: Card,
         rating: Rating,
         review_datetime: datetime | None = None,
         review_duration: int | None = None,
-    ) -> tuple[Card, ReviewLog]:
+    ) -> tuple[Card, ReviewLog, timedelta]:
         """
         Reviews a card with a given rating at a given time for a specified duration.
 
         Args:
-            card: The card being reviewed.
+            og_card: The card being reviewed.
             rating: The chosen rating for the card being reviewed.
             review_datetime: The date and time of the review.
             review_duration: The number of miliseconds it took to review the card or None if unspecified.
@@ -241,7 +242,8 @@ class Scheduler:
             review_datetime = datetime.now(timezone.utc)
 
         days_since_last_review = None
-        # print("card.last_review: ", card.last_review)
+        card = copy(og_card)
+
         if card.last_review:
             days_since_last_review = (
                 (review_datetime - self.epoch_millis_to_date(card.last_review)).days
@@ -476,7 +478,8 @@ class Scheduler:
         )
         if type(card.state) is State:
             card.state = card.state.value
-        return card, review_log
+
+        return card, review_log, next_interval
 
     # To-do: create a db option (table?) to store scheduler config
     def to_dict(

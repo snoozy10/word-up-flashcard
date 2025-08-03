@@ -17,6 +17,11 @@ class UIElements:
         self.floodgauge_timer = None
         self.btn_answer = None
 
+        self.frame_again = None
+        self.frame_hard = None
+        self.frame_good = None
+        self.frame_easy = None
+
         self.lbl_again, self.btn_again = None, None
         self.lbl_hard, self.btn_hard = None, None
         self.lbl_good, self.btn_good = None, None

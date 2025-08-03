@@ -2,7 +2,6 @@ from threading import Thread
 
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-from typing import Optional
 
 from ttkbootstrap.dialogs import Messagebox
 
@@ -15,6 +14,7 @@ class WordUp:
     app_theme = "superhero"  # cosmo, superhero, sandstone
     app_name = "WordUP!"
     app_geometry = "560x800"
+    win_width = 560
     font_primary = "Yu Gothic UI"
     font_secondary = "Segoe UI"
     btn_primary = "default-outline"
@@ -33,9 +33,10 @@ class WordUp:
         self.config_styles()
 
         self.ui_front: bool = True
+        self.db_overwrite_prompt: bool = True
         self.ui_elements = None
-        self.current_deck = None  # To-do?
-        self.current_card = None  # To-do?
+        self.current_deck = None
+        self.current_card = None
 
         self.progress = ttk.Progressbar(self.mainframe, mode="indeterminate")
         self.progress.pack(
@@ -57,7 +58,7 @@ class WordUp:
     def init_db_and_session_service(self):
         # UI must prompt in main thread
         db_exists = self.db_initializer.database_exists()
-        if db_exists:
+        if db_exists and self.db_overwrite_prompt:
             self.window.after(0, self.prompt_db_overwrite_and_continue)
         else:
             self.continue_initialization()
@@ -104,6 +105,7 @@ class WordUp:
         self.progress.stop()
         self.progress.destroy()
         self.load_ui_elements()
+        self.window.protocol("WM_DELETE_WINDOW", self.on_exit)
 
     def load_ui_elements(self):
         if self.session_service.has_cards_to_study():
@@ -116,14 +118,19 @@ class WordUp:
             self.load_bottomframe()  # needs intervals
 
         else:
-            print("word_up.py -> load_ui_elements -> else")
-            lbl_empty_msg = ttk.Label(
-                master=self.mainframe,
-                text="Woohoo! No cards to study for now!",
-                style="fontLarge.TLabel",
-                justify="center"
-            )
-            lbl_empty_msg.pack(expand=YES, anchor="center")
+            self.mainframe.destroy()
+            self.load_end_message()
+
+    def load_end_message(self):
+        lbl_empty_msg = ttk.Label(
+            master=self.window,
+            text="Woohoo! No cards to study for now!",
+            style="fontLarge.TLabel",
+            justify="center"
+        )
+        lbl_empty_msg.pack(expand=YES, anchor="center")
+        self.session_service.on_session_end()
+        # self.window.protocol("WM_DELETE_WINDOW", None)
 
     @staticmethod
     def config_styles():
@@ -158,19 +165,23 @@ class WordUp:
         )
         uie.lbl_deck_name.pack(side=TOP, anchor=W, padx=0)
 
-        new = self.session_service.current_deck_data.count.new
-        learn = self.session_service.current_deck_data.count.learn
-        review = self.session_service.current_deck_data.count.review
-
-        count_txt = f"New: {new}  |  Learning: {learn}  |  Due:  {review}"
+        count_txt = self._get_count_txt()
 
         uie.lbl_deck_counts = ttk.Label(
             uie.frame_deck_info, text=count_txt, style="fontMedium.TLabel"
         )
         uie.lbl_deck_counts.pack(side=BOTTOM, anchor=W, padx=0)
 
-        uie.btn_exit = ttk.Button(uie.frame_top, text="\u23FB", bootstyle=WordUp.btn_warning)
-        uie.btn_exit.pack(side=RIGHT, ipadx=WordUp.ipad_btn, ipady=WordUp.ipad_btn)
+        # uie.btn_exit = ttk.Button(uie.frame_top, text="\u23FB", bootstyle=WordUp.btn_warning)
+        # uie.btn_exit.pack(side=RIGHT, ipadx=WordUp.ipad_btn, ipady=WordUp.ipad_btn)
+
+    def _get_count_txt(self):
+        new = self.session_service.current_deck_data.count.new
+        learn = self.session_service.current_deck_data.count.learn
+        review = self.session_service.current_deck_data.count.review
+        done = self.session_service.current_deck_data.count.done_for_today
+
+        return f"New: {new}  |  Learn: {learn}  |  Due:  {review}  |  Done: {done}"
 
     def load_midframe(self):
         uie = self.ui_elements
@@ -189,6 +200,7 @@ class WordUp:
         uie.lbl_card = ttk.Label(
             uie.lframe_mid,
             text=self.session_service.current_card_data.content.de,
+            wraplength=WordUp.win_width * 0.75,
             justify="center",
             style="fontXLarge.TLabel"
         )
@@ -200,65 +212,118 @@ class WordUp:
         uie.frame_bottom.pack(fill=X)
 
         if self.ui_front:
-            print("Loading front")
             self._load_bottom_widgets_front()
 
         else:
-            # controller: intervals for buttons Again, Hard, Good, Easy
-            print("Loading back")
             self._load_bottom_widgets_back()
 
-    def _onclick_btn_answer(self):
-        self.ui_front = not self.ui_front
+    def _onclick_btn_show_answer(self):
+        self.ui_front = False
         self._update_lframe_mid()
         self._reload_frame_bottom()
 
+    def _update_frame_top(self):
+        uie = self.ui_elements
+        uie.lbl_deck_counts.configure(text=self._get_count_txt())
+
     def _update_lframe_mid(self):
         uie = self.ui_elements
-        # To-do: change lang and card text
-        # controller: en value and card meaning
-        uie.lframe_mid.configure(text="en")
-        uie.lbl_card.configure(text=self.session_service.current_card_data.content.en)
+        if self.ui_front:
+            uie.lframe_mid.configure(text="de")
+            uie.lbl_card.configure(text=self.session_service.current_card_data.content.de)
+        else:
+            uie.lframe_mid.configure(text="en")
+            uie.lbl_card.configure(text=self.session_service.current_card_data.content.en)
 
     def _reload_frame_bottom(self):
         uie = self.ui_elements
         for widget in uie.frame_bottom.winfo_children():
-            widget.destroy()
+            widget.pack_forget()
         if self.ui_front:
             self._load_bottom_widgets_front()
         else:
             self._load_bottom_widgets_back()
 
-    def _load_lbl_btn_composite(self, txt_lbl, txt_btn):
+    def _load_lbl_btn_composite(self, txt_lbl, txt_btn, bootstyle):
         uie = self.ui_elements
-        frame_temp = ttk.Frame(master=uie.frame_bottom)
-        frame_temp.pack(side=LEFT, expand=YES, ipadx=0)
-        lbl_interval = ttk.Label(frame_temp, text=txt_lbl, style='fontMedium.TLabel')
+        frame_btn_composite = ttk.Frame(master=uie.frame_bottom)
+        frame_btn_composite.pack(side=LEFT, expand=YES, ipadx=0)
+
+        lbl_interval = ttk.Label(frame_btn_composite, text=txt_lbl, style='fontMedium.TLabel')
         lbl_interval.pack(pady=(8, 10))  # To-do: improve
-        btn_rating = ttk.Button(frame_temp, text=txt_btn, bootstyle='default-outline')
+
+        btn_rating = ttk.Button(frame_btn_composite, text=txt_btn, bootstyle=bootstyle)
+        btn_rating.config(command=lambda b=btn_rating: self._onclick_btn_rating(b))
         btn_rating.pack(fill=X, ipadx=WordUp.ipad_btn*3, ipady=WordUp.ipad_btn)
-        return lbl_interval, btn_rating
+
+        return frame_btn_composite, lbl_interval, btn_rating
 
     def _load_bottom_widgets_back(self):
         uie = self.ui_elements
-        print("Loading back btn")
-        # To-do: change txt-lbl for each composite button with next interval on selected answer (Scheduler)
-        uie.lbl_again, uie.btn_again = self._load_lbl_btn_composite("<1m", "Again")
-        uie.lbl_hard, uie.btn_hard = self._load_lbl_btn_composite("<10m", "Hard")
-        uie.lbl_good, uie.btn_good = self._load_lbl_btn_composite("1d", "Good")
-        uie.lbl_easy, uie.btn_easy = self._load_lbl_btn_composite("10d", "Easy")
+        ivl_again, ivl_hard, ivl_good, ivl_easy = self.session_service.get_next_intervals()
+
+        if not (uie.frame_again and uie.frame_hard and uie.frame_good and uie.frame_easy):
+            uie.frame_again, uie.lbl_again, uie.btn_again \
+                = self._load_lbl_btn_composite(ivl_again, "Again", 'warning-outline')
+            uie.frame_hard, uie.lbl_hard, uie.btn_hard \
+                = self._load_lbl_btn_composite(ivl_hard, "Hard", 'default-outline')
+            uie.frame_good, uie.lbl_good, uie.btn_good \
+                = self._load_lbl_btn_composite(ivl_good, "Good", 'default-outline')
+            uie.frame_easy, uie.lbl_easy, uie.btn_easy \
+                = self._load_lbl_btn_composite(ivl_easy, "Easy", 'default-outline')
+
+        else:
+            uie.lbl_again.configure(text=ivl_again)
+            uie.lbl_hard.configure(text=ivl_hard)
+            uie.lbl_good.configure(text=ivl_good)
+            uie.lbl_easy.configure(text=ivl_easy)
+            uie.frame_again.pack(side=LEFT, expand=YES, ipadx=0)
+            uie.frame_hard.pack(side=LEFT, expand=YES, ipadx=0)
+            uie.frame_good.pack(side=LEFT, expand=YES, ipadx=0)
+            uie.frame_easy.pack(side=LEFT, expand=YES, ipadx=0)
+
+    def _onclick_btn_rating(self, btn_rating):
+        self.session_service.on_answer(rating_txt=btn_rating['text'], review_duration=None)
+        self.ui_front = not self.ui_front
+
+        if self.session_service.has_cards_to_study():
+            self._update_frame_top()
+            self._update_lframe_mid()
+            self._reload_frame_bottom()
+        else:
+            self.mainframe.destroy()
+            self.load_end_message()
 
     def _load_bottom_widgets_front(self):
         uie = self.ui_elements
         # To-do: Thread for timer and text!!!
         # controller: floodgauge_timer value and text
-        uie.floodgauge_timer = ttk.Floodgauge(master=uie.frame_bottom, orient=HORIZONTAL, value=53, text="0m : 45s",
+        if not uie.floodgauge_timer:
+            uie.floodgauge_timer = ttk.Floodgauge(master=uie.frame_bottom, orient=HORIZONTAL, value=53, text="0m : 45s",
                                                bootstyle=SECONDARY, thickness=15, font=(WordUp.font_secondary, 8))
         uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
 
-        uie.btn_answer = ttk.Button(master=uie.frame_bottom, text="Show Answer", style=WordUp.btn_primary,
-                                     command=self._onclick_btn_answer)
+        if not uie.btn_answer:
+            uie.btn_answer = ttk.Button(master=uie.frame_bottom, text="Show Answer", style=WordUp.btn_primary,
+                                    command=self._onclick_btn_show_answer)
         uie.btn_answer.pack(fill=X, ipadx=WordUp.ipad_btn, ipady=WordUp.ipad_btn)
+
+    def on_exit(self):
+        if self.session_service.has_cards_to_study():
+            answer = Messagebox.show_question(
+                parent=self.window,
+                title="End Session?",
+                buttons=['Yes:danger-outline', 'No:default'],
+                message=(
+                    "Do you really want to end this session?"
+                ),
+                alert=True
+            )
+            if answer == "Yes":
+                self.window.destroy()
+                self.session_service.on_session_end()
+        else:
+            self.window.destroy()
 
 
 # DEPRECATED

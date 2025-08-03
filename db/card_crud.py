@@ -64,7 +64,7 @@ class CardCRUD(DatabaseBaseClass):
 
     def get_due_review_cards(self, deck_id: int, review_state_int: int, session_cutoff_epoch_millis: int) \
             -> Optional[List[sqlite3.Row]]:
-        """Retrieve due cards that are to be reviewed."""
+        """Retrieve review cards that are due."""
         query = """
             SELECT * FROM cards 
             WHERE deck_id = ? AND state = ? AND due < ? 
@@ -76,7 +76,7 @@ class CardCRUD(DatabaseBaseClass):
 
     def get_due_learning_cards(self, deck_id: int, learning_state_int: int, relearning_state_int: int,
                                session_cutoff_epoch_millis: int) -> Optional[List[sqlite3.Row]]:
-        """Retrieve due cards that are to be reviewed."""
+        """Retrieve learning cards that are due."""
         query = """
             SELECT * FROM cards 
             WHERE deck_id = ? AND state IN (?, ?) AND due < ? 
