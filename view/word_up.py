@@ -34,10 +34,11 @@ class WordUp:
         self.config_styles()
 
         self.ui_front: bool = True
-        self.db_overwrite_prompt: bool = False
+        self.db_overwrite_prompt: bool = True
         self.ui_elements = None
 
         self.review_start_time = None
+        self.timer_id = None
 
         self.progress = ttk.Progressbar(self.mainframe, mode="indeterminate")
         self.progress.pack(
@@ -112,19 +113,22 @@ class WordUp:
         return int((datetime.now() - self.review_start_time).total_seconds())
 
     def update_review_timer(self):
-        if not self.review_start_time:  # To-do: improve
-            self.review_start_time = datetime.now()
-            elapsed_seconds = 0
-        else:
-            elapsed_seconds = self._get_elapsed_seconds()
-        if elapsed_seconds < 60:
-            self.ui_elements.floodgauge_timer.configure(value=elapsed_seconds, text=f"0m : {elapsed_seconds}s")
-            self.window.after(100, self.update_review_timer)
-        elif elapsed_seconds == 60:
-            self.ui_elements.floodgauge_timer.configure(value=60, text="1m : 0s")
-            self.window.after(200, self.update_review_timer)
-        elif elapsed_seconds > 60:
-            self.ui_elements.floodgauge_timer.configure(text=">1m : 0s")
+        if self.session_service.current_card_data:
+            max_seconds = 60
+            if not self.review_start_time:  # To-do: improve
+                self.review_start_time = datetime.now()
+                elapsed_seconds = 0
+            else:
+                elapsed_seconds = self._get_elapsed_seconds()
+
+            if elapsed_seconds < max_seconds:
+                self.ui_elements.floodgauge_timer.configure(value=elapsed_seconds, text=f"0m : {elapsed_seconds}s")
+                self.window.after(1000, self.update_review_timer)
+            elif elapsed_seconds == max_seconds:
+                self.ui_elements.floodgauge_timer.configure(value=60, text="1m : 0s")
+                # self.window.after(1000, self.update_review_timer)
+            elif elapsed_seconds > max_seconds:
+                self.ui_elements.floodgauge_timer.configure(text=">1m : 0s")
 
     def load_ui_elements(self):
         if self.session_service.has_cards_to_study():
@@ -154,11 +158,13 @@ class WordUp:
     @staticmethod
     def config_styles():
         s = ttk.Style()
-        color = s.colors.get('warning')
+        info = s.colors.get('info')
+        warning = s.colors.get('warning')
 
         ttk.Style().configure('TButton', font=(WordUp.font_primary, 12, 'bold'))
         ttk.Style().configure('fontLarge.TLabel', font=(WordUp.font_primary, 12, 'bold'))
-        ttk.Style().configure('fontXLarge.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=color)
+        ttk.Style().configure('fontXLarge.info.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=info)
+        ttk.Style().configure('fontXLarge.warning.TLabel', font=(WordUp.font_primary, 18, 'bold'), foreground=warning)
         ttk.Style().configure('fontMedium.TLabel', font=(WordUp.font_secondary, 9))
         ttk.Style().configure('fontSmall.TLabel', font=(WordUp.font_secondary, 9))
         ttk.Style().configure('TLabelframe', font=(WordUp.font_primary, 12))
@@ -221,7 +227,7 @@ class WordUp:
             text=self.session_service.current_card_data.content.de,
             wraplength=WordUp.win_width * 0.75,
             justify="center",
-            style="fontXLarge.TLabel"
+            style="fontXLarge.warning.TLabel"
         )
         uie.lbl_card.pack(expand=YES, anchor="center")
         uie.floodgauge_timer = ttk.Floodgauge(
@@ -239,8 +245,9 @@ class WordUp:
         if not self.review_start_time:
             self.review_start_time = datetime.now()
 
-        self.update_review_timer()  # uie.floodgauge_timer.configure(text=...)
-        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
+        # uie.floodgauge_timer.configure(text=...)
+        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn+1, pady=WordUp.padding_floodgauge)
+        self.update_review_timer()
 
     def load_bottomframe(self):
         uie = self.ui_elements
@@ -266,28 +273,17 @@ class WordUp:
         uie = self.ui_elements
         if self.ui_front:
             uie.lframe_mid.configure(text="de")
-            uie.lbl_card.configure(text=self.session_service.current_card_data.content.de)
+            uie.lbl_card.configure(text=self.session_service.current_card_data.content.de, style="fontXLarge.warning.TLabel")
         else:
             uie.lframe_mid.configure(text="en")
-            uie.lbl_card.configure(text=self.session_service.current_card_data.content.en)
+            uie.lbl_card.configure(text=self.session_service.current_card_data.content.en, style="fontXLarge.info.TLabel")
 
-        if not uie.floodgauge_timer:
-            uie.floodgauge_timer = ttk.Floodgauge(
-                master=uie.lframe_mid,
-                orient=HORIZONTAL,
-                mode="determinate",
-                value=0,
-                maximum=60,
-                text="0m : 0s",
-                bootstyle=SECONDARY,
-                thickness=15,
-                font=(WordUp.font_secondary, 8)
-            )
         if not self.review_start_time:
             self.review_start_time = datetime.now()
 
-        self.update_review_timer()  # uie.floodgauge_timer.configure(text=...)
-        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
+        # uie.floodgauge_timer.configure(text=...)
+        uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn+1, pady=WordUp.padding_floodgauge)
+        self.update_review_timer()
 
     def _update_frame_bottom(self):
         uie = self.ui_elements
@@ -343,10 +339,13 @@ class WordUp:
         self.review_start_time = None
         self.ui_front = not self.ui_front
 
-        if self.session_service.has_cards_to_study():
-            self._update_frame_top()
-            self._update_lframe_mid()
-            self._update_frame_bottom()
+        if self.session_service.current_card_data:
+            self.window.after(100, self._update_frame_top)
+            self.window.after(100, self._update_lframe_mid)
+            self.window.after(100, self._update_frame_bottom)
+            # self._update_frame_top()
+            # self._update_lframe_mid()
+            # self._update_frame_bottom()
         else:
             self.mainframe.destroy()
             self.load_end_message()
@@ -360,7 +359,7 @@ class WordUp:
         uie.btn_answer.pack(fill=X, ipadx=WordUp.ipad_btn, ipady=WordUp.ipad_btn*2, pady=(WordUp.ipad_btn*4, 0))
 
     def on_exit(self):
-        if self.session_service.has_cards_to_study():
+        if self.session_service.has_cards_to_study() or self.session_service.current_card_data:
             answer = Messagebox.show_question(
                 parent=self.window,
                 title="End Session?",

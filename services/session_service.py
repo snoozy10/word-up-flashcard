@@ -64,7 +64,7 @@ class AppContext(NamedTuple):
 
 
 class SessionService:
-    DAILY_LIMIT_FOR_NEW_CARDS = 25  # To-do for improvement: add limits per deck, and one overall limit
+    DAILY_LIMIT_FOR_NEW_CARDS = 5  # To-do for improvement: add limits per deck, and one overall limit
     SHOULD_LEARN_AHEAD = True
     LEARN_AHEAD_MINUTES = 60
 
@@ -269,6 +269,7 @@ class SessionService:
         card, review_log, _ = self.context.scheduler.review_card(card, rating, review_datetime, review_duration)
 
         self.session.review_logs.append(review_log)
+        print(f"len(self.session.review_logs): {len(self.session.review_logs)}")
 
         if card.due > Scheduler.date_to_epoch_millis(self.session.cutoff_time):
             self.session.cards_done_until_cutoff.append(card)
