@@ -101,9 +101,13 @@ class SessionService:
             cutoff_time=cutoff_time,
             limit_for_new_cards=limit_for_new_cards
         )
+
         self.populate_session_lists()  # 2 needs cutoff_time, limit_for_new_cards
         self.populate_session_indexed_contents()  # 3 needs all lists ready
         self.update_deck_counts()  # 3 needs all lists ready
+
+    def start_review_timer(self):
+        self.review_start_time = datetime.now()
 
     def set_current_deck_id_and_name(self, deck_id: Optional[int]):
         if deck_id is None:
@@ -114,6 +118,7 @@ class SessionService:
 
     @property
     def card_state_to_session_list(self):
+        # To-do for improvement
         return {
             State.New | State.New.value: self.session.new_cards,
             State.Learning | State.Learning.value: self.session.learn_cards,
@@ -164,12 +169,14 @@ class SessionService:
             print(len(self.session.indexed_contents))
 
     def update_deck_counts(self):
-        self.current_deck_data.count.new = len(self.session.new_cards) if self.session.new_cards is not None else 0
-        self.current_deck_data.count.learn = len(self.session.learn_cards) if self.session.learn_cards is not None else 0
-        self.current_deck_data.count.review = len(self.session.review_cards) if self.session.review_cards is not None else 0
+        self.current_deck_data.count.new = len(self.session.new_cards) \
+            if self.session.new_cards is not None else 0
+        self.current_deck_data.count.learn = len(self.session.learn_cards) \
+            if self.session.learn_cards is not None else 0
+        self.current_deck_data.count.review = len(self.session.review_cards) \
+            if self.session.review_cards is not None else 0
         self.current_deck_data.count.done_for_today = len(self.session.cards_done_until_cutoff) \
-            if self.session.cards_done_until_cutoff is not None \
-            else 0
+            if self.session.cards_done_until_cutoff is not None else 0
 
     def get_session_cutoff(self):
         if SessionService.SHOULD_LEARN_AHEAD:

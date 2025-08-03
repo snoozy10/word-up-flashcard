@@ -1,3 +1,4 @@
+from datetime import datetime
 from threading import Thread
 
 import ttkbootstrap as ttk
@@ -35,8 +36,8 @@ class WordUp:
         self.ui_front: bool = True
         self.db_overwrite_prompt: bool = True
         self.ui_elements = None
-        self.current_deck = None
-        self.current_card = None
+
+        self.review_start_time = None
 
         self.progress = ttk.Progressbar(self.mainframe, mode="indeterminate")
         self.progress.pack(
@@ -106,6 +107,19 @@ class WordUp:
         self.progress.destroy()
         self.load_ui_elements()
         self.window.protocol("WM_DELETE_WINDOW", self.on_exit)
+
+    def update_review_timer(self):
+        if not (self.ui_front or self.review_start_time):  # To-do: improve
+            return
+        elapsed_seconds = int((datetime.now() - self.review_start_time).total_seconds())
+        if elapsed_seconds < 60:
+            self.ui_elements.floodgauge_timer.configure(value=elapsed_seconds, text=f"0m : {elapsed_seconds}s")
+            self.window.after(100, self.update_review_timer)
+        elif elapsed_seconds == 60:
+            self.ui_elements.floodgauge_timer.configure(value=60, text="1m : 0s")
+            self.window.after(200, self.update_review_timer)
+        elif elapsed_seconds > 60:
+            self.ui_elements.floodgauge_timer.configure(text=">1m : 0s")
 
     def load_ui_elements(self):
         if self.session_service.has_cards_to_study():
@@ -219,6 +233,7 @@ class WordUp:
 
     def _onclick_btn_show_answer(self):
         self.ui_front = False
+        self.review_start_time = None
         self._update_lframe_mid()
         self._reload_frame_bottom()
 
@@ -299,8 +314,21 @@ class WordUp:
         # To-do: Thread for timer and text!!!
         # controller: floodgauge_timer value and text
         if not uie.floodgauge_timer:
-            uie.floodgauge_timer = ttk.Floodgauge(master=uie.frame_bottom, orient=HORIZONTAL, value=53, text="0m : 45s",
-                                               bootstyle=SECONDARY, thickness=15, font=(WordUp.font_secondary, 8))
+            uie.floodgauge_timer = ttk.Floodgauge(
+                master=uie.frame_bottom,
+                orient=HORIZONTAL,
+                mode="determinate",
+                value=0,
+                maximum=60,
+                text="0m : 0s",
+                bootstyle=SECONDARY,
+                thickness=15,
+                font=(WordUp.font_secondary, 8)
+            )
+        if not self.review_start_time:
+            self.review_start_time = datetime.now()
+
+        self.update_review_timer()  # uie.floodgauge_timer.configure(text=...)
         uie.floodgauge_timer.pack(fill=X, ipady=WordUp.ipad_btn, pady=WordUp.padding_floodgauge)
 
         if not uie.btn_answer:
