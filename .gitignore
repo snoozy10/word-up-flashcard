@@ -10,7 +10,6 @@ env/
 .env/
 
 # Database files
-*.db
 *.sqlite3
 
 # docs folder (to be modified)
