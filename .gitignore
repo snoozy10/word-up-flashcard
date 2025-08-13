@@ -1,0 +1,33 @@
+# Byte-compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment (if used)
+venv/
+env/
+.venv/
+.env/
+
+# Database files
+*.db
+*.sqlite3
+
+# docs folder (to be modified)
+docs/
+
+# IDE/editor config files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs and runtime files
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Python dependency file lock (optional)
+pip-wheel-metadata/
