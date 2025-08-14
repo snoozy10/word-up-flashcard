@@ -13,8 +13,12 @@ Since it's a project that I used to _learn_ python, the code isn't always very "
 In other words, _I optimized my learning by building something to learn with, while learning how to build something to optimize with_ :smile:
 
 How it works
-<img width="1918" height="1078" alt="front_back_labelled" src="https://github.com/user-attachments/assets/313f500f-6c92-4152-be34-304091a64381" />
 
-[![Watch the video](docs/thumbnail.png)](https://github.com/snoozy10/word-up-flashcard/raw/main/docs/demo.mp4)
+<p align="center">
+  <img src="docs/demo.gif" width="300" alt="Demo GIF">
+</p>
 
-[![Watch the video](https://raw.githubusercontent.com/snoozy10/word-up-flashcard/main/docs/thumbnail.png)](https://raw.githubusercontent.com/snoozy10/word-up-flashcard/main/docs/demo.mp4)
+What it means
+<p align="center">
+  <img width=80% height=auto alt="front_back_labelled" src="docs/front_back_labelled.png" />
+</p>
