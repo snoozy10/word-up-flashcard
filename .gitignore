@@ -13,7 +13,7 @@ env/
 *.sqlite3
 
 # docs folder (to be modified)
-docs/
+temp/
 
 # IDE/editor config files
 .idea/
