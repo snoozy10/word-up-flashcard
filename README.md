@@ -10,9 +10,9 @@ Project link: https://github.com/open-spaced-repetition/fsrs4anki
 
 <h2>Why I created WordUP!</h2>
 WordUP! is a python project created as a hands-on project to learn Python, but also something that had use in my personal life.
-Since it's a project that I used to _learn_ python, the code isn't always very "Pythonic". But it definitely gets the job done when it comes to learning German vocabulary.
+Since it's a project that I used to <i>learn</i> python, the code isn't always very "Pythonic". But it definitely gets the job done in terms of learning German!
 <br/><br/>
-In other words, <i>I optimized my learning by building something to learn with, while learning how to build something to optimize language-learning with</i> :smile:
+In other words, <i>I optimized my learning by building a tool to learn with, while learning to build the tool itself</i> :smile:
 <br/><br/>
 The words were extracted from Netzwerk's B1-Glossary (Kapitelwortschatz). This links WordUP! to one of my earlier python projects for text extraction.
 <br/>
