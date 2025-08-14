@@ -15,4 +15,6 @@ In other words, _I optimized my learning by building something to learn with, wh
 How it works
 <img width="1918" height="1078" alt="front_back_labelled" src="https://github.com/user-attachments/assets/313f500f-6c92-4152-be34-304091a64381" />
 
+[![Watch the video](docs/thumbnail.png)](https://github.com/snoozy10/word-up-flashcard/raw/main/docs/demo.mp4)
+
 [![Watch the video](https://raw.githubusercontent.com/snoozy10/word-up-flashcard/main/docs/thumbnail.png)](https://raw.githubusercontent.com/snoozy10/word-up-flashcard/main/docs/demo.mp4)
